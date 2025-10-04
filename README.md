@@ -71,3 +71,9 @@ mkdir build && cd build
 cmake ..
 cmake --build .
 ```
+
+## Frequently Asked Questions
+
+### Will there ever be the same project, but for external cheats?
+
+Yes, I was thinking about it. My friend is already working on it. It's called 'Obsidian', but it's not open source or ready to use yet as it's still under development.
