@@ -6,25 +6,53 @@ namespace eclipse {
 
     class memory {
     public:
-        // Read memory
+        // Read memory - inline for any type
         template<typename T>
         static T read(address_t address) {
+            static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
             return *reinterpret_cast<T*>(address);
         }
 
-        // Write memory
+        // Write memory - inline for any type
         template<typename T>
         static void write(address_t address, const T& value) {
+            static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
             *reinterpret_cast<T*>(address) = value;
         }
 
         // Read with protection change
         template<typename T>
-        static T read_protected(address_t address);
+        static T read_protected(address_t address) {
+            static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+            DWORD old_protect;
+            if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
+                return T{};
+
+            T value = T{};
+            __try {
+                value = read<T>(address);
+            }
+            __finally {
+                protect(address, sizeof(T), old_protect);
+            }
+            return value;
+        }
 
         // Write with protection change
         template<typename T>
-        static void write_protected(address_t address, const T& value);
+        static void write_protected(address_t address, const T& value) {
+            static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+            DWORD old_protect;
+            if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
+                return;
+
+            __try {
+                write<T>(address, value);
+            }
+            __finally {
+                protect(address, sizeof(T), old_protect);
+            }
+        }
 
         // Read array/buffer
         static bool read_bytes(address_t address, void* buffer, size_t size);

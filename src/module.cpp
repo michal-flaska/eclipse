@@ -1,5 +1,6 @@
 #include "eclipse/module.hpp"
 #include <Psapi.h>
+#include <memory>
 
 #pragma comment(lib, "psapi.lib")
 
@@ -33,7 +34,8 @@ namespace eclipse {
             return std::nullopt;
 
         char name[MAX_PATH];
-        GetModuleBaseNameA(GetCurrentProcess(), handle, name, MAX_PATH);
+        if (!GetModuleBaseNameA(GetCurrentProcess(), handle, name, MAX_PATH))
+            return std::nullopt;
 
         module_info info;
         info.name = name;
@@ -46,16 +48,25 @@ namespace eclipse {
 
     std::vector<module_info> module::get_all() {
         std::vector<module_info> modules;
-        HMODULE handles[1024];
-        DWORD needed;
+        DWORD needed = 0;
 
-        if (!EnumProcessModules(GetCurrentProcess(), handles, sizeof(handles), &needed))
+        // First call to get required size
+        if (!EnumProcessModules(GetCurrentProcess(), nullptr, 0, &needed) || needed == 0)
             return modules;
 
-        int count = needed / sizeof(HMODULE);
+        // Allocate exact size needed
+        size_t count = needed / sizeof(HMODULE);
+        auto handles = std::make_unique<HMODULE[]>(count);
+
+        // Second call to get actual modules
+        if (!EnumProcessModules(GetCurrentProcess(), handles.get(), needed, &needed))
+            return modules;
+
+        // Recalculate count in case it changed
+        count = needed / sizeof(HMODULE);
         modules.reserve(count);
 
-        for (int i = 0; i < count; ++i) {
+        for (size_t i = 0; i < count; ++i) {
             MODULEINFO mod_info;
             char name[MAX_PATH];
 

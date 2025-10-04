@@ -2,36 +2,6 @@
 
 namespace eclipse {
 
-    template<typename T>
-    T memory::read_protected(address_t address) {
-        DWORD old_protect;
-        if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
-            return T{};
-
-        T value = T{};
-        __try {
-            value = read<T>(address);
-        }
-        __finally {
-            protect(address, sizeof(T), old_protect);
-        }
-        return value;
-    }
-
-    template<typename T>
-    void memory::write_protected(address_t address, const T& value) {
-        DWORD old_protect;
-        if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
-            return;
-
-        __try {
-            write<T>(address, value);
-        }
-        __finally {
-            protect(address, sizeof(T), old_protect);
-        }
-    }
-
     bool memory::read_bytes(address_t address, void* buffer, size_t size) {
         if (!address || !buffer || !size)
             return false;
@@ -92,16 +62,5 @@ namespace eclipse {
 
         return addr;
     }
-
-    // Explicit instantiations
-    template int memory::read_protected<int>(address_t);
-    template float memory::read_protected<float>(address_t);
-    template double memory::read_protected<double>(address_t);
-    template address_t memory::read_protected<address_t>(address_t);
-
-    template void memory::write_protected<int>(address_t, const int&);
-    template void memory::write_protected<float>(address_t, const float&);
-    template void memory::write_protected<double>(address_t, const double&);
-    template void memory::write_protected<address_t>(address_t, const address_t&);
 
 } // namespace eclipse
