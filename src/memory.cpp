@@ -8,8 +8,13 @@ namespace eclipse {
         if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
             return T{};
 
-        T value = read<T>(address);
-        protect(address, sizeof(T), old_protect);
+        T value = T{};
+        __try {
+            value = read<T>(address);
+        }
+        __finally {
+            protect(address, sizeof(T), old_protect);
+        }
         return value;
     }
 
@@ -19,8 +24,12 @@ namespace eclipse {
         if (!protect(address, sizeof(T), PAGE_EXECUTE_READWRITE, &old_protect))
             return;
 
-        write<T>(address, value);
-        protect(address, sizeof(T), old_protect);
+        __try {
+            write<T>(address, value);
+        }
+        __finally {
+            protect(address, sizeof(T), old_protect);
+        }
     }
 
     bool memory::read_bytes(address_t address, void* buffer, size_t size) {
@@ -44,32 +53,47 @@ namespace eclipse {
         if (!protect(address, size, PAGE_EXECUTE_READWRITE, &old_protect))
             return false;
 
-        memcpy(reinterpret_cast<void*>(address), buffer, size);
-        protect(address, size, old_protect);
-        return true;
+        bool success = false;
+        __try {
+            memcpy(reinterpret_cast<void*>(address), buffer, size);
+            success = true;
+        }
+        __finally {
+            protect(address, size, old_protect);
+        }
+        return success;
     }
 
     bool memory::protect(address_t address, size_t size, DWORD protection, DWORD* old_protection) {
         DWORD temp;
-        return VirtualProtect(reinterpret_cast<void*>(address), size, protection, old_protection ? old_protection : &temp) != 0;
+        return VirtualProtect(reinterpret_cast<void*>(address), size, protection,
+                            old_protection ? old_protection : &temp) != 0;
     }
 
     address_t memory::follow_pointer(address_t base, const std::vector<uintptr_t>& offsets) {
+        if (!base || offsets.empty())
+            return 0;
+
         address_t addr = base;
-
         for (size_t i = 0; i < offsets.size(); ++i) {
-            if (!addr)
-                return 0;
+            addr += offsets[i];
 
-            addr = read<address_t>(addr);
-            if (i < offsets.size() - 1 || offsets[i] != 0)
-                addr += offsets[i];
+            if (i < offsets.size() - 1) {
+                __try {
+                    addr = read<address_t>(addr);
+                    if (!addr)
+                        return 0;
+                }
+                __except (EXCEPTION_EXECUTE_HANDLER) {
+                    return 0;
+                }
+            }
         }
 
         return addr;
     }
 
-    // Explicit template instantiations for common types
+    // Explicit instantiations
     template int memory::read_protected<int>(address_t);
     template float memory::read_protected<float>(address_t);
     template double memory::read_protected<double>(address_t);
